@@ -146,7 +146,8 @@ class ThemeCache {
               KEY `tag` (`tag`)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
 
-            ALTER TABLE `'.$wpdb->prefix.'theme_cache_tag`ADD CONSTRAINT `'.$wpdb->prefix.'theme_cache_tag_ibfk_1`
+            ALTER TABLE `'.$wpdb->prefix.'theme_cache_tag`
+            ADD CONSTRAINT `'.$wpdb->prefix.'theme_cache_tag_ibfk_1`
             FOREIGN KEY (`key`)
             REFERENCES `'.$wpdb->prefix.'theme_cache` (`key`)
             ON DELETE CASCADE ON UPDATE CASCADE;
