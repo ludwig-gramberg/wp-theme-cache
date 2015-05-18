@@ -132,27 +132,28 @@ class ThemeCache {
     }
 
     protected static function init_db_1(wpdb $wpdb) {
-        $sql = '
+        $wpdb->query('
             CREATE TABLE IF NOT EXISTS `'.$wpdb->prefix.'theme_cache` (
               `key` varchar(40) COLLATE utf8_unicode_ci NOT NULL,
               `data` longtext COLLATE utf8_unicode_ci NOT NULL,
               PRIMARY KEY (`key`)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
-
+        ');
+        $wpdb->query('
             CREATE TABLE IF NOT EXISTS `'.$wpdb->prefix.'theme_cache_tag` (
               `key` varchar(40) COLLATE utf8_unicode_ci NOT NULL,
               `tag` varchar(60) COLLATE utf8_unicode_ci NOT NULL,
               PRIMARY KEY (`key`,`tag`),
               KEY `tag` (`tag`)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
-
+        ');
+        $wpdb->query('
             ALTER TABLE `'.$wpdb->prefix.'theme_cache_tag`
             ADD CONSTRAINT `'.$wpdb->prefix.'theme_cache_tag_ibfk_1`
             FOREIGN KEY (`key`)
             REFERENCES `'.$wpdb->prefix.'theme_cache` (`key`)
             ON DELETE CASCADE ON UPDATE CASCADE;
-        ';
-        $wpdb->query($sql);
+        ');
     }
 }
 
