@@ -1,13 +1,13 @@
 <?php
 /**
  * Plugin Name: Theme Cache
- * Plugin URI:
- * Description:
+ * Plugin URI: https://github.com/ludwig-gramberg/wp-theme-cache
+ * Description: WP Block Cache with Tags
  * Version: 0.1
  * Author: Ludwig Gramberg
- * Author URI:
+ * Author URI: http://www.ludwig-gramberg.de/
  * Text Domain:
- * License: Proprietary
+ * License: MIT
  */
 class ThemeCache {
 
