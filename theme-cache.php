@@ -26,29 +26,41 @@ class ThemeCache {
     }
 
     public static function set($cacheKey, $data, array $tags = array()) {
-        global $wpdb;
+        global $wpdb; /* @var $wpdb wpdb */
 
-        // remove old entries
+        // attempt to update old entry
+
+        $updated = $wpdb->query($wpdb->prepare('
+            UPDATE `'.$wpdb->prefix.'theme_cache`
+            SET `data` = %s
+            WHERE `key`= %s
+        ', $data, $cacheKey));
+
+        if($updated == 0) {
+
+            // no update, insert instead
+
+            $sql = $wpdb->prepare('
+                INSERT IGNORE INTO `'.$wpdb->prefix.'theme_cache`
+                SET
+                    `key` = %s,
+                    `data` = %s
+                ;
+            ', $cacheKey, $data);
+            $wpdb->query($sql);
+        }
+
+        // remove old tags
 
         $wpdb->query($wpdb->prepare('
-            DELETE FROM `'.$wpdb->prefix.'theme_cache`
+            DELETE FROM `'.$wpdb->prefix.'theme_cache_tag`
             WHERE `key`= %s
         ', $cacheKey));
-
-        // insert new
-
-        $sql = $wpdb->prepare('
-            INSERT IGNORE INTO `'.$wpdb->prefix.'theme_cache`
-            SET
-                `key` = %s,
-                `data` = %s
-            ;
-        ', $cacheKey, $data);
-        $wpdb->query($sql);
 
         // add tags
 
         if(!empty($tags)) {
+
             $values = array();
             $sql = '
                 INSERT IGNORE
@@ -67,6 +79,10 @@ class ThemeCache {
 
     public static function flush() {
         global $wpdb;
+        $sql = '
+            DELETE FROM `'.$wpdb->prefix.'theme_cache_tag`;
+        ';
+        $wpdb->query($sql);
         $sql = '
             DELETE FROM `'.$wpdb->prefix.'theme_cache`;
         ';
