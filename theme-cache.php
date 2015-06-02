@@ -59,21 +59,15 @@ class ThemeCache {
 
         // add tags
 
-        if(!empty($tags)) {
-
-            $values = array();
+        foreach($tags as $tag) {
+            // prevent fk constraint fail
             $sql = '
-                INSERT IGNORE
-                INTO `'.$wpdb->prefix.'theme_cache_tag`
-                (`key`,`tag`) VALUES
+                INSERT
+                INTO `'.$wpdb->prefix.'theme_cache_tag` (`key`,`tag`)
+                SELECT `c`.`key`, %s
+                FROM `'.$wpdb->prefix.'theme_cache` AS `c` WHERE `c`.`key` = %s
             ';
-            foreach($tags as $tag) {
-                $sql .= "\n".'(%s, %s),';
-                $values[] = $cacheKey;
-                $values[] = $tag;
-            }
-            $sql = rtrim($sql,',');
-            $wpdb->query($wpdb->prepare($sql, $values));
+            $wpdb->query($wpdb->prepare($sql, $tag, $cacheKey));
         }
     }
 
