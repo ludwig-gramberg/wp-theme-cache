@@ -165,6 +165,16 @@ class ThemeCache {
             ON DELETE CASCADE ON UPDATE CASCADE;
         ');
     }
+
+    protected static function init_db_2(wpdb $wpdb) {
+        $wpdb->query('
+            CREATE TABLE IF NOT EXISTS `'.$wpdb->prefix.'theme_cache_fullpage` (
+              `file` varchar(255) COLLATE utf8_unicode_ci NOT NULL,
+              `request` varchar(255) COLLATE utf8_unicode_ci NOT NULL
+              PRIMARY KEY (`filename`)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+        ');
+    }
 }
 
 add_action('theme_cache_get', array('ThemeCache','get'), 10, 2);
