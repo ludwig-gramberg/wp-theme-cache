@@ -31,7 +31,7 @@ function tc_request_to_filename($prefix, $request, $params = array()) {
     return $prefix.$filename;
 }
 
-function tc_process_request($tc_fp_requests, $tc_fp_nocache_cookies, $tc_fp_nocache_params, $tc_fp_mysql, $tc_fp_folder, $tc_fp_prefix) {
+function tc_process_request($tc_fp_requests, $tc_fp_mysql, $tc_fp_folder, $tc_fp_prefix) {
     $tc_fp_start = microtime(true);
     if($_SERVER['REQUEST_METHOD'] != 'GET') {
         return;
@@ -39,20 +39,6 @@ function tc_process_request($tc_fp_requests, $tc_fp_nocache_cookies, $tc_fp_noca
 
     if($_SERVER['HTTP_USER_AGENT'] == 'wp_tcfpc_fetch') {
         return;
-    }
-
-    // test for cookies
-    foreach($tc_fp_nocache_cookies as $cookie) {
-        if(array_key_exists($cookie, $_COOKIE)) {
-            return;
-        }
-    }
-
-    // test for params
-    foreach($tc_fp_nocache_params as $param) {
-        if(array_key_exists($param, $_GET)) {
-            return;
-        }
     }
 
     // normalize request
