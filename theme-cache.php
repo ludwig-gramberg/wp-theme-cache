@@ -265,7 +265,7 @@ class ThemeCache {
         $wpdb->query('
             CREATE TABLE IF NOT EXISTS `'.$wpdb->prefix.'theme_cache_fullpage` (
               `file` varchar(255) COLLATE utf8_unicode_ci NOT NULL,
-              `request` varchar(255) COLLATE utf8_unicode_ci NOT NULL
+              `request` varchar(255) COLLATE utf8_unicode_ci NOT NULL,
               PRIMARY KEY (`filename`)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
         ');
