@@ -152,7 +152,7 @@ class ThemeCache {
             $dir = ABSPATH.'/'.$config['folder'];
             if(is_dir($dir)) {
                 $rc = null; $ro = array();
-                exec('du '.escapeshellarg($dir).' | tail -n 1', $ro, $rc);
+                exec('du -b '.escapeshellarg($dir).' | tail -n 1', $ro, $rc);
                 preg_match('/^([0-9]+)/', $ro[0], $m);
                 $size_fpc = $m[1];
             }
