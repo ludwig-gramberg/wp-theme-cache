@@ -211,6 +211,8 @@ function tc_cron_revalidate($config, $folder, $cache_maxage, $cron_runtime, $cro
             if($http_code == '200' && filesize($abs_target_tmp_file) > 0 && $rc == 0) {
                 if(!file_exists($abs_target_file) || sha1_file($abs_target_file) != sha1_file($abs_target_tmp_file)) {
                     rename($abs_target_tmp_file, $abs_target_file);
+                } else {
+                    unlink($abs_target_tmp_file);
                 }
                 $stm_update->bindValue(':file', $row->file);
                 $stm_update->execute();
