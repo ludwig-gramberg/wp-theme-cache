@@ -141,12 +141,72 @@ class ThemeCache {
     }
 
     public static function settings_page() {
+        global $wpdb;
+
+        $rows = $wpdb->get_results('select round(((sum(length(`data`))) / 1024), 2) AS `size` from `'.$wpdb->prefix.'theme_cache`');
+        $size = $rows[0]->size;
+
+        $size_fpc = 0;
+        if(self::has_fpc()) {
+            $config = self::get_fpc_config();
+            $dir = ABSPATH.'/'.$config['folder'];
+            if(is_dir($dir)) {
+                $rc = null; $ro = array();
+                exec('du '.escapeshellarg($dir).' | tail -n 1', $ro, $rc);
+                preg_match('/^([0-9]+)/', $ro[0], $m);
+                $size_fpc = $m[1];
+            }
+        }
+
         ?>
         <div class="wrap">
             <h2>Theme Cache</h2>
             <form method="post" action="options.php">
+                <table class="form-table">
+                    <tbody>
+                        <tr>
+                            <th scope="row"><?php echo __('Block Cache Size');?></th>
+                            <td>
+                                <?php
+                                $unit = 'Kib';
+                                if($size > 1024) {
+                                    $unit = 'Mib';
+                                    $size /= 1024;
+                                }
+                                if($size > 1024) {
+                                    $unit = 'Gib';
+                                    $size /= 1024;
+                                }
+                                ?>
+                                <?php echo number_format($size,1,',','.').' '.$unit ?>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th scope="row"><?php echo __('Full Page Cache Size');?></th>
+                            <td>
+                                <?php
+                                $unit = 'byte';
+                                if($size_fpc > 1024) {
+                                    $unit = 'Kib';
+                                    $size_fpc /= 1024;
+                                }
+                                if($size_fpc > 1024) {
+                                    $unit = 'Mib';
+                                    $size_fpc /= 1024;
+                                }
+                                if($size_fpc > 1024) {
+                                    $unit = 'Gib';
+                                    $size_fpc /= 1024;
+                                }
+                                ?>
+                                <?php echo number_format($size_fpc,1,',','.').' '.$unit ?>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
                 <?php settings_fields( 'theme_cache' ); ?>
-                <?php submit_button(__('Empty Cache'), 'delete', 'empty'); ?>
+                <?php submit_button(__('Empty Block Cache'), 'delete', 'empty'); ?>
+                <?php submit_button(__('Empty Full Page Cache'), 'delete', 'empty_fpc'); ?>
             </form>
         </div>
         <?php
@@ -155,6 +215,9 @@ class ThemeCache {
     public static function settings_process() {
         if(array_key_exists('empty', $_POST)) {
             do_action('theme_cache_flush');
+        }
+        if(array_key_exists('empty_fpc', $_POST)) {
+            do_action('theme_cache_flush_fpc');
         }
     }
 
