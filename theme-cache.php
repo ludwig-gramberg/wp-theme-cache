@@ -62,7 +62,7 @@ class ThemeCache {
         foreach($tags as $tag) {
             // prevent fk constraint fail
             $sql = '
-                INSERT
+                INSERT IGNORE
                 INTO `'.$wpdb->prefix.'theme_cache_tag` (`key`,`tag`)
                 SELECT `c`.`key`, %s
                 FROM `'.$wpdb->prefix.'theme_cache` AS `c` WHERE `c`.`key` = %s
