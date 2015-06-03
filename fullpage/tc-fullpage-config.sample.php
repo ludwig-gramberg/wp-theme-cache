@@ -1,7 +1,6 @@
 <?php
 // copy this file to the wp root named tc-fullpage-config.php
-
-$tc_fp_start = microtime(true);
+$tc_fp_prefix = $_SERVER['HTTPS'] ? 'https-' : 'http-';
 $tc_fp_nocache_cookies = array(
     'PHPSESSID',
 );

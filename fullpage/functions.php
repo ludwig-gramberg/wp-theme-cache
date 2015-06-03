@@ -18,7 +18,7 @@ function tc_flag_cache_create($request, $filename, $config) {
     }
 }
 
-function tc_request_to_filename($request, $params = array()) {
+function tc_request_to_filename($prefix, $request, $params = array()) {
 
     $filename = trim($request, '/');
     $filename = $filename == '' ? '_' : $filename;
@@ -28,10 +28,10 @@ function tc_request_to_filename($request, $params = array()) {
     }
     $filename .= '.html';
 
-    return $filename;
+    return $prefix.$filename;
 }
 
-function tc_process_request($tc_fp_requests, $tc_fp_nocache_cookies, $tc_fp_nocache_params, $tc_fp_mysql, $tc_fp_folder) {
+function tc_process_request($tc_fp_requests, $tc_fp_nocache_cookies, $tc_fp_nocache_params, $tc_fp_mysql, $tc_fp_folder, $tc_fp_prefix) {
     $tc_fp_start = microtime(true);
     if($_SERVER['REQUEST_METHOD'] != 'GET') {
         return;
@@ -78,7 +78,7 @@ function tc_process_request($tc_fp_requests, $tc_fp_nocache_cookies, $tc_fp_noca
                     $f = true;
                 }
             }
-            $filename = tc_request_to_filename($request, $validParams);
+            $filename = tc_request_to_filename($tc_fp_prefix, $request, $validParams);
 
             if(file_exists($tc_fp_folder.$filename)) {
                 $td = number_format((microtime(true)-$tc_fp_start)*1000,2,'.','');
