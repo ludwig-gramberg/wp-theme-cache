@@ -120,6 +120,7 @@ function tc_cron_create($config, $folder, $cron_runtime, $cron_interval) {
     ));
     $stm_update = $db->prepare('UPDATE `'.$config['table'].'` SET `created` = NOW() WHERE `file` = :file');
     $stm_fetch = $db->prepare('SELECT `file`,`request` FROM `'.$config['table'].'` WHERE `created` IS NULL LIMIT 1');
+    $stm_remove = $db->prepare('DELETE FROM `'.$config['table'].'` WHERE `file` = :file');
 
     do {
         $__i = microtime(true);
@@ -145,8 +146,14 @@ function tc_cron_create($config, $folder, $cron_runtime, $cron_interval) {
                 error_log('curl failed('.$rc.')'."\n\tcommand: ".$command."\n\toutput:".implode("\n", $ro));
             }
 
-            $stm_update->bindValue(':file', $row->file);
-            $stm_update->execute();
+            if($rc == CURLE_HTTP_NOT_FOUND) {
+                // remove entry if 404
+                $stm_remove->bindValue(':file', $row->file);
+                $stm_remove->execute();
+            } else {
+                $stm_update->bindValue(':file', $row->file);
+                $stm_update->execute();
+            }
 
             // failed files must be removed (eg. size=0)
             if(file_exists($abs_target_file) && filesize($abs_target_file) == 0) {
@@ -187,6 +194,7 @@ function tc_cron_revalidate($config, $folder, $cache_maxage, $cron_runtime, $cro
 
     $stm_update = $db->prepare('UPDATE `'.$config['table'].'` SET `created` = NOW() WHERE `file` = :file');
     $stm_fetch = $db->prepare('SELECT `file`,`request` FROM `'.$config['table'].'` WHERE DATE_ADD(created, interval '.$cache_maxage.' second) < NOW()');
+    $stm_remove = $db->prepare('DELETE FROM `'.$config['table'].'` WHERE `file` = :file');
 
     do {
         $__i = microtime(true);
@@ -227,9 +235,16 @@ function tc_cron_revalidate($config, $folder, $cache_maxage, $cron_runtime, $cro
                 unlink($abs_target_tmp_file);
             }
 
-            $stm_update->bindValue(':file', $row->file);
-            $stm_update->execute();
-
+            if($rc == CURLE_HTTP_NOT_FOUND) {
+                $stm_remove->bindValue(':file', $row->file);
+                $stm_remove->execute();
+                if(file_exists(($abs_target_file))) {
+                    unlink($abs_target_file);
+                }
+            } else {
+                $stm_update->bindValue(':file', $row->file);
+                $stm_update->execute();
+            }
         }
         $stm_fetch->closeCursor();
 
