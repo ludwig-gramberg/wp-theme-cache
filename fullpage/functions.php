@@ -8,6 +8,7 @@ function tc_flag_cache_create($request, $filename, $config) {
         $stm = $db->prepare('
             INSERT INTO `'.$config['table'].'` (`file`,`request`,`created`)
             VALUES (:file, :request, NULL)
+            ON DUPLICATE KEY UPDATE `created`=NULL;
         ');
         $stm->bindValue(':file', $filename);
         $stm->bindValue(':request', $request);
@@ -181,7 +182,7 @@ function tc_cron_revalidate($config, $folder, $cache_maxage, $cron_runtime, $cro
     ));
 
     $stm_update = $db->prepare('UPDATE `'.$config['table'].'` SET `created` = NOW() WHERE `file` = :file');
-    $stm_fetch = $db->prepare('SELECT `file`,`request` FROM `'.$config['table'].'` WHERE DATE_ADD(created, interval '.$cache_maxage.' second) < NOW()');
+    $stm_fetch = $db->prepare('SELECT `file`,`request` FROM `'.$config['table'].'` WHERE DATE_ADD(`created`, interval '.$cache_maxage.' second) < NOW() ORDER BY `created` ASC');
     $stm_remove = $db->prepare('DELETE FROM `'.$config['table'].'` WHERE `file` = :file');
 
     do {
