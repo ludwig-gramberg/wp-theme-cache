@@ -1,5 +1,5 @@
 <?php
-// copy this file to the wp_root named fullpage.php
+// copy this file to the wp root named tc-fullpage-config.php
 
 $tc_fp_start = microtime(true);
 $tc_fp_nocache_cookies = array(

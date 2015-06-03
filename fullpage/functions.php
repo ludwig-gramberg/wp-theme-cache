@@ -37,6 +37,10 @@ function tc_process_request($tc_fp_requests, $tc_fp_nocache_cookies, $tc_fp_noca
         return;
     }
 
+    if($_SERVER['HTTP_USER_AGENT'] == 'wp_tcfpc_fetch') {
+        return;
+    }
+
     // test for cookies
     foreach($tc_fp_nocache_cookies as $cookie) {
         if(array_key_exists($cookie, $_COOKIE)) {
@@ -90,7 +94,20 @@ function tc_process_request($tc_fp_requests, $tc_fp_nocache_cookies, $tc_fp_noca
     }
 }
 
+function tc_check_dir($folder) {
+    if(is_dir($folder)) {
+        return true;
+    }
+    mkdir($folder, 0777, true);
+    return is_dir($folder);
+}
+
 function tc_cron_create($config, $folder, $cron_runtime, $cron_interval) {
+
+    if(!tc_check_dir($folder)) {
+        error_log('could not find/create cache folder '.$folder);
+        exit(1);
+    }
 
     $cron_runtime*=1000; // ms
     $__s = microtime(true);
@@ -101,38 +118,124 @@ function tc_cron_create($config, $folder, $cron_runtime, $cron_interval) {
         PDO::ATTR_PERSISTENT => false,
         PDO::ERRMODE_EXCEPTION => true,
     ));
-    $stm = $db->prepare('UPDATE `'.$config['table'].'` SET `created` = NOW() WHERE `file` = :file');
+    $stm_update = $db->prepare('UPDATE `'.$config['table'].'` SET `created` = NOW() WHERE `file` = :file');
+    $stm_fetch = $db->prepare('SELECT `file`,`request` FROM `'.$config['table'].'` WHERE `created` IS NULL LIMIT 1');
 
     do {
         $__i = microtime(true);
 
-        $rows = $db->query('SELECT `file`,`request` FROM `'.$config['table'].'` WHERE `created` IS NULL LIMIT 1')->fetchAll(PDO::FETCH_OBJ);
+        $stm_fetch->execute();
         $poll_wait = true;
-        if(!empty($rows)) {
+
+        while($row = $stm_fetch->fetchObject()) {
             $poll_wait = false;
-            $row = $rows[0];
 
             $abs_target_file = $folder.$row->file;
+            clearstatcache(true, $abs_target_file);
 
-            $command = 'curl -f -k -o '.escapeshellarg($abs_target_file).' '.escapeshellarg($row->request);
+            // -s silent
+            // -f dont download if http error
+            // -k dont check ssl validity
+            $command = 'curl -A '.escapeshellarg('wp_tcfpc_fetch').' -s -f -k -o '.escapeshellarg($abs_target_file).' '.escapeshellarg($row->request);
             $rc = null;
             $ro = array();
             exec($command, $ro, $rc);
 
-            $stm->bindValue(':file', $row->file);
-            $stm->execute();
+            if($rc > 0) {
+                error_log('curl failed('.$rc.')'."\n\tcommand: ".$command."\n\toutput:".implode("\n", $ro));
+            }
 
-            // failed files must be removed
+            $stm_update->bindValue(':file', $row->file);
+            $stm_update->execute();
+
+            // failed files must be removed (eg. size=0)
             if(file_exists($abs_target_file) && filesize($abs_target_file) == 0) {
                 unlink($abs_target_file);
             }
         }
+        $stm_fetch->closeCursor();
 
         if($poll_wait) {
             $__d = intval((microtime(true)-$__i)*1000);
             if($__d < $cron_interval) {
                 usleep(($cron_interval - $__d)*1000);
             }
+        }
+
+        $__e = (microtime(true)-$__s)*1000;
+    } while($__e < $cron_runtime);
+
+    $db = null;
+}
+
+function tc_cron_revalidate($config, $folder, $cache_maxage, $cron_runtime, $cron_interval) {
+
+    if(!tc_check_dir($folder)) {
+        error_log('could not find/create cache folder '.$folder);
+        exit(1);
+    }
+
+    $cron_runtime*=1000; // ms
+    $__s = microtime(true);
+
+    // connect db
+
+    $db = new PDO('mysql:host='.$config['host'].';dbname='.$config['name'], $config['user'], $config['pass'], array(
+        PDO::ATTR_PERSISTENT => false,
+        PDO::ERRMODE_EXCEPTION => true,
+    ));
+
+    $stm_update = $db->prepare('UPDATE `'.$config['table'].'` SET `created` = NOW() WHERE `file` = :file');
+    $stm_fetch = $db->prepare('SELECT `file`,`request` FROM `'.$config['table'].'` WHERE DATE_ADD(created, interval '.$cache_maxage.' second) < NOW()');
+
+    do {
+        $__i = microtime(true);
+
+        $stm_fetch->execute();
+
+        $__e = (microtime(true)-$__s)*1000;
+        while($__e < $cron_runtime && ($row = $stm_fetch->fetchObject())) {
+
+            $abs_target_file = $folder.$row->file;
+            $abs_target_tmp_file = $folder.$row->file.'.tmp';
+
+            clearstatcache(true, $abs_target_tmp_file);
+            clearstatcache(true, $abs_target_file);
+
+            // -s silent
+            // -f dont download if http error
+            // -k dont check ssl validity
+            $command = 'curl -A '.escapeshellarg('wp_tcfpc_fetch').' -s -f -k -o '.escapeshellarg($abs_target_tmp_file).' '.escapeshellarg($row->request);
+            $rc = null;
+            $ro = array();
+            exec($command, $ro, $rc);
+
+            // failed files must be removed (eg. size=0)
+            if(file_exists($abs_target_file) && filesize($abs_target_file) == 0) {
+                unlink($abs_target_file);
+            }
+            if(file_exists($abs_target_tmp_file) && filesize($abs_target_tmp_file) == 0) {
+                unlink($abs_target_tmp_file);
+            }
+
+            if($rc > 0) {
+                error_log('curl failed('.$rc.')'."\n\tcommand: ".$command."\n\toutput:".implode("\n", $ro));
+            } elseif(file_exists($abs_target_tmp_file) && (!file_exists($abs_target_file) || sha1_file($abs_target_file) != sha1_file($abs_target_tmp_file))) {
+                rename($abs_target_tmp_file, $abs_target_file);
+            }
+            if(file_exists(($abs_target_tmp_file))) {
+                unlink($abs_target_tmp_file);
+            }
+
+            $stm_update->bindValue(':file', $row->file);
+            $stm_update->execute();
+
+        }
+        $stm_fetch->closeCursor();
+
+        $__d = intval((microtime(true)-$__i)*1000);
+        if($__d < $cron_interval) {
+            usleep(($cron_interval - $__d)*1000);
         }
 
         $__e = (microtime(true)-$__s)*1000;

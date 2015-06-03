@@ -81,6 +81,18 @@ class ThemeCache {
             DELETE FROM `'.$wpdb->prefix.'theme_cache`;
         ';
         $wpdb->query($sql);
+
+        if(self::has_fpc()) {
+            $config = self::get_fpc_config();
+            $cacheFolder = ABSPATH.'/'.$config['folder'];
+            if(is_dir($cacheFolder)) {
+                exec('rm '.$cacheFolder.'/*.html');
+            }
+            $sql = '
+              DELETE FROM `'.$wpdb->prefix.'theme_cache_fullpage`;
+            ';
+            $wpdb->query($sql);
+        }
     }
 
     public static function invalidate($tag) {
@@ -139,6 +151,21 @@ class ThemeCache {
         if(array_key_exists('empty', $_POST)) {
             do_action('theme_cache_flush');
         }
+    }
+
+    public static function has_fpc() {
+        return file_exists(ABSPATH.'/tc-fullpage-config.php');
+    }
+
+    public static function get_fpc_config() {
+        if(!self::has_fpc()) {
+            return null;
+        }
+        /* @var $tc_fp_folder string */
+        require_once ABSPATH.'/tc-fullpage-config.php';
+        return array(
+            'folder' => $tc_fp_folder
+        );
     }
 
     protected static function init_db_1(wpdb $wpdb) {
