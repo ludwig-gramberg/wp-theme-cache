@@ -81,12 +81,17 @@ class ThemeCache {
             DELETE FROM `'.$wpdb->prefix.'theme_cache`;
         ';
         $wpdb->query($sql);
+    }
 
+    public static function flush_fpc() {
+        global $wpdb;
         if(self::has_fpc()) {
             $config = self::get_fpc_config();
-            $cacheFolder = ABSPATH.'/'.$config['folder'];
-            if(is_dir($cacheFolder)) {
-                exec('rm '.$cacheFolder.'/*.html');
+            if(array_key_exists('folder', $config) && $config['folder'] != '') {
+                $cacheFolder = ABSPATH.'/'.$config['folder'];
+                if(is_dir($cacheFolder)) {
+                    exec('rm '.$cacheFolder.'/*.html');
+                }
             }
             $sql = '
               DELETE FROM `'.$wpdb->prefix.'theme_cache_fullpage`;
@@ -162,7 +167,7 @@ class ThemeCache {
             return null;
         }
         /* @var $tc_fp_folder string */
-        require_once ABSPATH.'/tc-fullpage-config.php';
+        require ABSPATH.'/tc-fullpage-config.php';
         return array(
             'folder' => $tc_fp_folder
         );
@@ -207,6 +212,7 @@ class ThemeCache {
 add_action('theme_cache_get', array('ThemeCache','get'), 10, 2);
 add_action('theme_cache_set', array('ThemeCache','set'), 10, 3);
 add_action('theme_cache_flush', array('ThemeCache','flush'), 10, 0);
+add_action('theme_cache_flush_fpc', array('ThemeCache','flush_fpc'), 10, 0);
 add_action('theme_cache_invalidate', array('ThemeCache','invalidate'), 10, 1);
 add_action('init', array('ThemeCache', 'init'));
 add_action('admin_init', array('ThemeCache', 'settings_init'));
