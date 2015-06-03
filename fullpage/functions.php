@@ -132,32 +132,34 @@ function tc_cron_create($config, $folder, $cron_runtime, $cron_interval) {
             $poll_wait = false;
 
             $abs_target_file = $folder.$row->file;
+            $abs_target_tmp_file = $folder.$row->file.'.tmp';
+
             clearstatcache(true, $abs_target_file);
+            clearstatcache(true, $abs_target_tmp_file);
 
             // -s silent
             // -f dont download if http error
             // -k dont check ssl validity
-            $command = 'curl -A '.escapeshellarg('wp_tcfpc_fetch').' -s -f -k -o '.escapeshellarg($abs_target_file).' '.escapeshellarg($row->request);
+            $command = 'curl -A '.escapeshellarg('wp_tcfpc_fetch').' -s -f -k -o '.escapeshellarg($abs_target_tmp_file).' --write-out "%{http_code}" '.escapeshellarg($row->request);
             $rc = null;
             $ro = array();
             exec($command, $ro, $rc);
+            $http_code = trim($ro[0]);
 
-            if($rc > 0) {
-                error_log('curl failed('.$rc.')'."\n\tcommand: ".$command."\n\toutput:".implode("\n", $ro));
+            // clean up if exists
+            if(file_exists($abs_target_file)) {
+                unlink($abs_target_file);
             }
-
-            if($rc == CURLE_HTTP_NOT_FOUND) {
-                // remove entry if 404
-                $stm_remove->bindValue(':file', $row->file);
-                $stm_remove->execute();
-            } else {
+            if($http_code == '200' && filesize($abs_target_tmp_file) > 0 && $rc == 0) {
+                rename($abs_target_tmp_file, $abs_target_file);
                 $stm_update->bindValue(':file', $row->file);
                 $stm_update->execute();
-            }
-
-            // failed files must be removed (eg. size=0)
-            if(file_exists($abs_target_file) && filesize($abs_target_file) == 0) {
-                unlink($abs_target_file);
+            } else {
+                if(file_exists($abs_target_tmp_file)) {
+                    unlink($abs_target_tmp_file);
+                }
+                $stm_remove->bindValue(':file', $row->file);
+                $stm_remove->execute();
             }
         }
         $stm_fetch->closeCursor();
@@ -213,37 +215,27 @@ function tc_cron_revalidate($config, $folder, $cache_maxage, $cron_runtime, $cro
             // -s silent
             // -f dont download if http error
             // -k dont check ssl validity
-            $command = 'curl -A '.escapeshellarg('wp_tcfpc_fetch').' -s -f -k -o '.escapeshellarg($abs_target_tmp_file).' '.escapeshellarg($row->request);
+            $command = 'curl -A '.escapeshellarg('wp_tcfpc_fetch').' -s -f -k -o '.escapeshellarg($abs_target_tmp_file).' --write-out "%{http_code}" '.escapeshellarg($row->request);
             $rc = null;
             $ro = array();
             exec($command, $ro, $rc);
+            $http_code = trim($ro[0]);
 
-            // failed files must be removed (eg. size=0)
-            if(file_exists($abs_target_file) && filesize($abs_target_file) == 0) {
-                unlink($abs_target_file);
-            }
-            if(file_exists($abs_target_tmp_file) && filesize($abs_target_tmp_file) == 0) {
-                unlink($abs_target_tmp_file);
-            }
-
-            if($rc > 0) {
-                error_log('curl failed('.$rc.')'."\n\tcommand: ".$command."\n\toutput:".implode("\n", $ro));
-            } elseif(file_exists($abs_target_tmp_file) && (!file_exists($abs_target_file) || sha1_file($abs_target_file) != sha1_file($abs_target_tmp_file))) {
-                rename($abs_target_tmp_file, $abs_target_file);
-            }
-            if(file_exists(($abs_target_tmp_file))) {
-                unlink($abs_target_tmp_file);
-            }
-
-            if($rc == CURLE_HTTP_NOT_FOUND) {
-                $stm_remove->bindValue(':file', $row->file);
-                $stm_remove->execute();
-                if(file_exists(($abs_target_file))) {
-                    unlink($abs_target_file);
+            if($http_code == '200' && filesize($abs_target_tmp_file) > 0 && $rc == 0) {
+                if(!file_exists($abs_target_file) || sha1_file($abs_target_file) != sha1_file($abs_target_tmp_file)) {
+                    rename($abs_target_tmp_file, $abs_target_file);
                 }
-            } else {
                 $stm_update->bindValue(':file', $row->file);
                 $stm_update->execute();
+            } else {
+                if(file_exists($abs_target_file)) {
+                    unlink($abs_target_file);
+                }
+                if(file_exists($abs_target_tmp_file)) {
+                    unlink($abs_target_tmp_file);
+                }
+                $stm_remove->bindValue(':file', $row->file);
+                $stm_remove->execute();
             }
         }
         $stm_fetch->closeCursor();
