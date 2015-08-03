@@ -32,7 +32,7 @@ function tc_request_to_filename($prefix, $request, $params = array()) {
     return $prefix.$filename;
 }
 
-function tc_process_request($tc_fp_requests, $tc_fp_mysql, $tc_fp_folder, $tc_fp_prefix) {
+function tc_process_request($tc_fp_requests, $tc_fp_mysql, $tc_fp_folder, $tc_fp_prefix, $tc_fp_hostname) {
     $tc_fp_start = microtime(true);
     if($_SERVER['REQUEST_METHOD'] != 'GET') {
         return;
@@ -47,7 +47,7 @@ function tc_process_request($tc_fp_requests, $tc_fp_mysql, $tc_fp_folder, $tc_fp
     $request = $request == '' ? '/' : '/'.$request.'/';
 
     $www_request = $_SERVER['HTTPS'] ? 'https://' : 'http://';
-    $www_request .= $_SERVER['HTTP_HOST'];
+    $www_request .= $tc_fp_hostname;
     $www_request .= $request;
 
     // find request

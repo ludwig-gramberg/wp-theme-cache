@@ -1,5 +1,6 @@
 <?php
 // copy this file to the wp root named tc-fullpage-config.php
+$tc_fp_hostname = 'www.sample-domain.com';
 $tc_fp_mysql = array(
     'host' => '',
     'user' => '',
