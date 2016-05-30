@@ -208,7 +208,7 @@ function tc_cron_revalidate($config, $folder, $cache_maxage, $cron_runtime, $cro
             exec($command, $ro, $rc);
             $http_code = trim($ro[0]);
 
-            if($http_code == '200' && filesize($abs_target_tmp_file) > 0 && $rc == 0) {
+            if($http_code == '200' && $rc == 0 && file_exists($abs_target_tmp_file) && filesize($abs_target_tmp_file) > 0) {
                 if(!file_exists($abs_target_file) || sha1_file($abs_target_file) != sha1_file($abs_target_tmp_file)) {
                     rename($abs_target_tmp_file, $abs_target_file);
                 } else {
