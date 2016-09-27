@@ -185,6 +185,12 @@ function tc_cron_revalidate($config, $folder, $cache_maxage, $cron_runtime, $cro
     $stm_fetch = $db->prepare('SELECT `file`,`request` FROM `'.$config['table'].'` WHERE DATE_ADD(`created`, interval '.$cache_maxage.' second) < NOW() ORDER BY `created` ASC');
     $stm_remove = $db->prepare('DELETE FROM `'.$config['table'].'` WHERE `file` = :file');
 
+    $ch = curl_init();
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_USERAGENT, 'wp_tcfpc_fetch');
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
+
     do {
         $__i = microtime(true);
 
@@ -194,38 +200,27 @@ function tc_cron_revalidate($config, $folder, $cache_maxage, $cron_runtime, $cro
         while($__e < $cron_runtime && ($row = $stm_fetch->fetchObject())) {
 
             $abs_target_file = $folder.$row->file;
-            $abs_target_tmp_file = $folder.$row->file.'.tmp';
-
-            clearstatcache(true, $abs_target_tmp_file);
             clearstatcache(true, $abs_target_file);
 
-            // -s silent
-            // -f dont download if http error
-            // -k dont check ssl validity
-            $command = 'curl -A '.escapeshellarg('wp_tcfpc_fetch').' -s -f -k -o '.escapeshellarg($abs_target_tmp_file).' --write-out "%{http_code}" '.escapeshellarg($row->request);
-            $rc = null;
-            $ro = array();
-            exec($command, $ro, $rc);
-            $http_code = trim($ro[0]);
+            curl_setopt($ch, CURLOPT_URL, $row->request);
+            $ch_result = curl_exec($ch);
+            $ch_errno = curl_errno($ch);
+            $ch_code = intval(curl_getinfo($ch, CURLINFO_HTTP_CODE));
 
-            if($http_code == '200' && $rc == 0 && file_exists($abs_target_tmp_file) && @filesize($abs_target_tmp_file) > 0) {
+            if($ch_errno != CURLE_OK) {
+                error_log('cache: error fetching '.$row->request.': '.curl_error($ch));
+                continue;
+            }
 
-                $sha1_target_file = @sha1_file($abs_target_file);
-                $sha1_target_tmp_file = @sha1_file($abs_target_file);
+            if($ch_code == 200) {
 
-                if(!file_exists($abs_target_file) || $sha1_target_file != $sha1_target_tmp_file) {
-                    @rename($abs_target_tmp_file, $abs_target_file);
-                } else {
-                    @unlink($abs_target_tmp_file);
-                }
+                file_put_contents($abs_target_file, $ch_result);
+
                 $stm_update->bindValue(':file', $row->file);
                 $stm_update->execute();
             } else {
                 if(file_exists($abs_target_file)) {
                     @unlink($abs_target_file);
-                }
-                if(file_exists($abs_target_tmp_file)) {
-                    @unlink($abs_target_tmp_file);
                 }
                 $stm_remove->bindValue(':file', $row->file);
                 $stm_remove->execute();
@@ -240,6 +235,8 @@ function tc_cron_revalidate($config, $folder, $cache_maxage, $cron_runtime, $cro
 
         $__e = (microtime(true)-$__s)*1000;
     } while($__e < $cron_runtime);
+
+    curl_close($ch);
 
     $db = null;
 }
