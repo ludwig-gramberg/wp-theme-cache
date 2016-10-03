@@ -109,6 +109,12 @@ function tc_cron_create($config, $folder, $cron_runtime, $cron_interval) {
     $stm_fetch = $db->prepare('SELECT `file`,`request` FROM `'.$config['table'].'` WHERE `created` IS NULL LIMIT 1');
     $stm_remove = $db->prepare('DELETE FROM `'.$config['table'].'` WHERE `file` = :file');
 
+    $ch = curl_init();
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_USERAGENT, 'wp_tcfpc_fetch');
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
+
     do {
         $__i = microtime(true);
 
@@ -119,31 +125,21 @@ function tc_cron_create($config, $folder, $cron_runtime, $cron_interval) {
             $poll_wait = false;
 
             $abs_target_file = $folder.$row->file;
-            $abs_target_tmp_file = $folder.$row->file.'.tmp';
 
-            clearstatcache(true, $abs_target_file);
-            clearstatcache(true, $abs_target_tmp_file);
+            curl_setopt($ch, CURLOPT_URL, $row->request);
+            $ch_result = curl_exec($ch);
+            $ch_errno = curl_errno($ch);
+            $ch_code = intval(curl_getinfo($ch, CURLINFO_HTTP_CODE));
 
-            // -s silent
-            // -f dont download if http error
-            // -k dont check ssl validity
-            $command = 'curl -A '.escapeshellarg('wp_tcfpc_fetch').' -s -f -k -o '.escapeshellarg($abs_target_tmp_file).' --write-out "%{http_code}" '.escapeshellarg($row->request);
-            $rc = null;
-            $ro = array();
-            exec($command, $ro, $rc);
-            $http_code = trim($ro[0]);
+            if($ch_code == 200) {
 
-            // clean up if exists
-            if(file_exists($abs_target_file)) {
-                unlink($abs_target_file);
-            }
-            if($http_code == '200' && filesize($abs_target_tmp_file) > 0 && $rc == 0) {
-                rename($abs_target_tmp_file, $abs_target_file);
+                file_put_contents($abs_target_file, $ch_result);
+
                 $stm_update->bindValue(':file', $row->file);
                 $stm_update->execute();
             } else {
-                if(file_exists($abs_target_tmp_file)) {
-                    unlink($abs_target_tmp_file);
+                if(file_exists($abs_target_file)) {
+                    @unlink($abs_target_file);
                 }
                 $stm_remove->bindValue(':file', $row->file);
                 $stm_remove->execute();
@@ -160,6 +156,8 @@ function tc_cron_create($config, $folder, $cron_runtime, $cron_interval) {
 
         $__e = (microtime(true)-$__s)*1000;
     } while($__e < $cron_runtime);
+
+    curl_close($ch);
 
     $db = null;
 }
