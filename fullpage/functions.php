@@ -19,7 +19,7 @@ function tc_flag_cache_create($request, $filename, $config) {
     }
 }
 
-function tc_request_to_filename($prefix, $request, $params = array()) {
+function tc_request_to_filename($prefix, $hostname, $request, $params = array()) {
 
     $filename = trim($request, '/');
     $filename = $filename == '' ? '_' : $filename;
@@ -29,16 +29,31 @@ function tc_request_to_filename($prefix, $request, $params = array()) {
     }
     $filename .= '.html';
 
-    return $prefix.$filename;
+    return $prefix.$hostname.'-'.$filename;
 }
 
-function tc_process_request($tc_fp_requests, $tc_fp_mysql, $tc_fp_folder, $tc_fp_prefix, $tc_fp_hostname) {
+/**
+ * @param $tc_fp_requests
+ * @param $tc_fp_mysql
+ * @param $tc_fp_folder
+ * @param $tc_fp_prefix
+ * @param array $tc_fp_hostnames
+ */
+function tc_process_request($tc_fp_requests, $tc_fp_mysql, $tc_fp_folder, $tc_fp_prefix, $tc_fp_hostnames) {
+
+    $tc_fp_hostnames = (array)$tc_fp_hostnames;
+
     $tc_fp_start = microtime(true);
     if($_SERVER['REQUEST_METHOD'] != 'GET') {
         return;
     }
 
     if($_SERVER['HTTP_USER_AGENT'] == 'wp_tcfpc_fetch') {
+        return;
+    }
+
+    $tc_fp_hostname = $_SERVER['HTTP_HOST'];
+    if(!in_array($tc_fp_hostname, $tc_fp_hostnames)) {
         return;
     }
 
@@ -65,7 +80,7 @@ function tc_process_request($tc_fp_requests, $tc_fp_mysql, $tc_fp_folder, $tc_fp
                     $f = true;
                 }
             }
-            $filename = tc_request_to_filename($tc_fp_prefix, $request, $validParams);
+            $filename = tc_request_to_filename($tc_fp_prefix, $tc_fp_hostname, $request, $validParams);
 
             if(file_exists($tc_fp_folder.$filename)) {
                 $td = number_format((microtime(true)-$tc_fp_start)*1000,2,'.','');
@@ -128,7 +143,6 @@ function tc_cron_create($config, $folder, $cron_runtime, $cron_interval) {
 
             curl_setopt($ch, CURLOPT_URL, $row->request);
             $ch_result = curl_exec($ch);
-            $ch_errno = curl_errno($ch);
             $ch_code = intval(curl_getinfo($ch, CURLINFO_HTTP_CODE));
 
             if($ch_code == 200) {
