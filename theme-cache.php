@@ -146,3 +146,5 @@ add_action('admin_init', array('ThemeCache', 'settings_init'));
 add_action('admin_menu', array('ThemeCache', 'settings_menu'));
 
 register_activation_hook(__FILE__, array( 'ThemeCache', 'init'));
+
+define('WP_THEME_CACHE_IS_CLIENT', $_SERVER['HTTP_USER_AGENT'] == 'wp_tcfpc_fetch');
