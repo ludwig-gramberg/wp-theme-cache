@@ -39,15 +39,13 @@ function tc_request_to_filename($prefix, $hostname, $request, $params = array())
  * @param $tc_fp_prefix
  * @param array $tc_fp_hostnames
  */
-function tc_process_request($tc_fp_requests, $tc_fp_mysql, $tc_fp_folder, $tc_fp_prefix, $tc_fp_hostnames) {
+function tc_process_request($tc_fp_cache, $tc_fp_requests, $tc_fp_mysql, $tc_fp_folder, $tc_fp_prefix, $tc_fp_hostnames) {
 
     $tc_fp_hostnames = (array)$tc_fp_hostnames;
 
-    $tc_fp_start = microtime(true);
     if($_SERVER['REQUEST_METHOD'] != 'GET') {
         return;
     }
-
     if($_SERVER['HTTP_USER_AGENT'] == 'wp_tcfpc_fetch') {
         return;
     }
@@ -65,29 +63,60 @@ function tc_process_request($tc_fp_requests, $tc_fp_mysql, $tc_fp_folder, $tc_fp
     $www_request .= $tc_fp_hostname;
     $www_request .= $request;
 
+    list($cache, $tags) = $tc_fp_cache();
+    if(!$cache) {
+        return;
+    }
+
     // find request
     foreach($tc_fp_requests as $expr => $params) {
         if(preg_match($expr, $request)) {
 
             // detect request params
             $validParams = array();
-            $f = false;
+            $f = true;
             foreach($params as $param => $paramExpr) {
                 if(array_key_exists($param, $_GET) && is_scalar($_GET[$param]) && preg_match($paramExpr, $_GET[$param])) {
                     $validParams[$param] = $_GET[$param];
                     $www_request .= $f ? '?' : '&';
-                    $www_request .= $param.'='.$_GET[$param];
-                    $f = true;
+                    $www_request .= $param;
+                    if($_GET[$param] != '') {
+                        $www_request .'='.$_GET[$param];
+                    }
+                    $f = false;
                 }
             }
             $filename = tc_request_to_filename($tc_fp_prefix, $tc_fp_hostname, $request, $validParams);
 
             if(file_exists($tc_fp_folder.$filename)) {
-                $td = number_format((microtime(true)-$tc_fp_start)*1000,2,'.','');
+
+                // prepare cached html
+                $cached_html = file_get_contents($tc_fp_folder.$filename);
+                // get pagetype if any
+                $page_type = null;
+                if(preg_match('/\<!\-\-CACHE_PAGE_TYPE:([A-Z\_]+)\-\-\>/', substr($cached_html,0,100), $m)) {
+                    $page_type = $m[1];
+                    $cached_html = str_replace($m[0], '', $cached_html);
+                }
+                if($page_type) {
+                    list($cache, ) = $tc_fp_cache($page_type);
+                    if(!$cache) {
+                        return;
+                    }
+                }
+                preg_match_all('/\<!\-\-CACHE_TAG:([A-Z\_]+)\-\-\>/', $cached_html, $m);
+                foreach($m[1] as $tag) {
+                    if(in_array($tag, $tags)) {
+                        $cached_html = preg_replace('/\<!\-\-(\/)?CACHE_TAG:'.$tag.'\-\-\>/', '', $cached_html);
+                    } else {
+                        $cached_html = preg_replace('/\<!\-\-CACHE_TAG:'.$tag.'\-\-\>(.*?)\<!\-\-\/CACHE_TAG:'.$tag.'\-\-\>/s', '', $cached_html);
+                    }
+                }
+
                 header('Content-Type: text/html;charset=utf-8');
-                header('X-TcFpc-Time: '.$td.'ms');
-                header('X-Sendfile: '.$_SERVER['DOCUMENT_ROOT'].'/'.$tc_fp_folder.$filename);
+                echo $cached_html;
                 exit;
+
             } else {
                 tc_flag_cache_create($www_request, $filename, $tc_fp_mysql);
                 return;
